@@ -42,8 +42,9 @@ class ProgressRead(ProgressBase):
 
 
 # ------------------------------------------------------------------
-# 🔹 Nour — Quests & Levels
+# 🔹 Aya — Quests & Levels
 # ------------------------------------------------------------------
+
 class QuestBase(BaseModel):
     name: str
     description: str
@@ -51,6 +52,8 @@ class QuestBase(BaseModel):
     xp_reward: int
     completed: bool = False
     assigned_to: Optional[str] = None
+    is_daily: bool = False
+    deadline: Optional[datetime] = None
 
 class QuestCreate(QuestBase):
     pass
@@ -76,7 +79,7 @@ class LevelRead(LevelBase):
 
 
 # ------------------------------------------------------------------
-# 🔹 Aya — Cosmetics & Rewards
+# 🔹 Nour — Cosmetics & Rewards
 # ------------------------------------------------------------------
 class AvatarBase(BaseModel):
     user: str
