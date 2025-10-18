@@ -35,34 +35,37 @@ class Progress(SQLModel, table=True):
 
 
 # ------------------------------------------------------------------
-# 🔹 Nour — Quests & Levels
+# 🔹 Aya — Quests & Levels
 # ------------------------------------------------------------------
 class Quest(SQLModel, table=True):
-    """
-    Represents a gamified learning quest with XP rewards.
-    """
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     description: str
-    difficulty: str  # e.g. "Easy", "Medium", "Hard"
+    difficulty: str  # "Easy", "Medium", "Hard"
     xp_reward: int
     completed: bool = False
-    assigned_to: Optional[str] = Field(default=None, foreign_key="users.username")
+    assigned_to: Optional[str] = Field(default=None, foreign_key="user.username")
+    is_daily: bool = False
+    deadline: Optional[datetime] = None
+
+
+class UserQuest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user: str = Field(index=True, foreign_key="user.username")
+    quest_id: int = Field(foreign_key="quest.id")
+    completed_at: datetime = Field(default_factory=datetime.utcnow)
+    xp_earned: int = 0
 
 
 class Level(SQLModel, table=True):
-    """
-    Tracks a user's current level and XP progression.
-    """
     id: Optional[int] = Field(default=None, primary_key=True)
     user: str = Field(index=True)
     current_level: int = 1
     total_xp: int = 0
     xp_to_next: int = 100
 
-
 # ------------------------------------------------------------------
-# 🔹 Aya — Cosmetics & Rewards
+# 🔹 Nour — Cosmetics & Rewards
 # ------------------------------------------------------------------
 class Avatar(SQLModel, table=True):
     """
