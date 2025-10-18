@@ -11,6 +11,7 @@ class User(SQLModel, table=True):
     Represents a StudyQuest user.
     Used as the base for all other features.
     """
+    __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     email: Optional[str] = None
@@ -46,7 +47,7 @@ class Quest(SQLModel, table=True):
     difficulty: str  # e.g. "Easy", "Medium", "Hard"
     xp_reward: int
     completed: bool = False
-    assigned_to: Optional[str] = Field(default=None, foreign_key="user.username")
+    assigned_to: Optional[str] = Field(default=None, foreign_key="users.username")
 
 
 class Level(SQLModel, table=True):
