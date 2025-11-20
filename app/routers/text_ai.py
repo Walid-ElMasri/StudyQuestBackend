@@ -134,7 +134,7 @@ def _mock_ai_feedback(reflection_text: str) -> dict:
 @router.post("/", response_model=TextAIReflectionRead)
 async def add_reflection(
     request: Request,
-    data: TextAIReflectionCreate | None = Body(default=None),
+    data: TextAIReflectionCreate | dict | None = Body(default=None),
     user: str | None = None,
     text: str | None = None,
 ):
@@ -144,8 +144,10 @@ async def add_reflection(
     """
     # Accept both JSON body and query/form fallbacks to avoid 422s from clients
     incoming: dict = {}
-    if data is not None:
+    if isinstance(data, TextAIReflectionCreate):
         incoming.update(data.model_dump(exclude_none=True))
+    elif isinstance(data, dict):
+        incoming.update(data)
     else:
         try:
             incoming.update(await request.json())

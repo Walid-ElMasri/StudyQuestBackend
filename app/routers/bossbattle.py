@@ -67,7 +67,7 @@ _QUESTIONS = [
 def _generate_ai_questions(total: int) -> List[Dict[str, Any]]:
     """Try to generate multiple-choice questions with OpenAI; fallback to static set."""
     if not ai_client:
-        return _QUESTIONS[:total]
+        return _QUESTIONS[: min(total, len(_QUESTIONS))]
 
     prompt = (
         "Create a short quiz for coding students. "
@@ -103,10 +103,10 @@ def _generate_ai_questions(total: int) -> List[Dict[str, Any]]:
             if len(cleaned) >= total:
                 break
         if cleaned:
-            return cleaned[:total]
+            return cleaned[: min(total, len(cleaned))]
     except Exception as e:
         logger.warning("AI question generation failed, falling back to static set: %s", e)
-    return _QUESTIONS[:total]
+    return _QUESTIONS[: min(total, len(_QUESTIONS))]
 
 
 class StartRequest(BaseModel):
@@ -214,7 +214,7 @@ def start_boss_battle(payload: StartRequest):
     if payload.user in _ACTIVE_SESSIONS:
         raise HTTPException(status_code=409, detail="An active boss battle already exists.")
 
-    total = min(payload.total_questions, len(_QUESTIONS)) if payload.total_questions else len(_QUESTIONS)
+    total = payload.total_questions or len(_QUESTIONS)
     questions = _generate_ai_questions(total)
     _ACTIVE_SESSIONS[payload.user] = {
         "difficulty": payload.difficulty or "medium",
@@ -270,14 +270,22 @@ def get_current_question(user: str):
 @router.post("/answer")
 async def submit_answer(
     request: Request,
-    payload: AnswerRequest | None = Body(default=None),
+    payload: AnswerRequest | dict | None = Body(default=None),
     user: str | None = None,
     choice_idx: int | None = None,
 ):
     # Accept JSON body, form, or query params to minimize 422s.
-    if payload:
+    if isinstance(payload, AnswerRequest):
         username = payload.user
         choice = payload.choice_idx
+    elif isinstance(payload, dict):
+        body = payload
+        username = body.get("user") or body.get("username") or user
+        choice_raw = body.get("choice_idx") or body.get("choiceIdx") or body.get("choice") or choice_idx
+        try:
+            choice = int(choice_raw) if choice_raw is not None else None
+        except Exception:
+            choice = None
     else:
         body: dict = {}
         try:
