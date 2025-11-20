@@ -44,14 +44,14 @@ class Quest(SQLModel, table=True):
     difficulty: str  # "Easy", "Medium", "Hard"
     xp_reward: int
     completed: bool = False
-    assigned_to: Optional[str] = Field(default=None, foreign_key="user.username")
+    assigned_to: Optional[str] = Field(default=None, foreign_key="users.username")
     is_daily: bool = False
     deadline: Optional[datetime] = None
 
 
 class UserQuest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user: str = Field(index=True, foreign_key="user.username")
+    user: str = Field(index=True, foreign_key="users.username")
     quest_id: int = Field(foreign_key="quest.id")
     completed_at: datetime = Field(default_factory=datetime.utcnow)
     xp_earned: int = 0
