@@ -5,22 +5,109 @@ from app.database import engine
 from app.models import TextAIReflection, User
 from app.schemas import TextAIReflectionCreate, TextAIReflectionRead
 
+# NEW: OpenAI imports
+import os
+import json
+import logging
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables from a local .env file if present
+load_dotenv(find_dotenv())
+
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover - optional dependency
+    OpenAI = None
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/text-ai", tags=["Text AI Mentor"])
 
+# ------------------------------------------------------------------
+# 🧠 OpenAI Client
+# ------------------------------------------------------------------
+
+# Reads key from environment variable OPENAI_API_KEY
+# - Locally:  export OPENAI_API_KEY="sk-...."
+# - Vercel:   set it in Project → Settings → Environment Variables
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key) if OpenAI and openai_api_key else None
+if not client:
+    missing = "OpenAI package" if not OpenAI else "OPENAI_API_KEY"
+    logger.warning("Text AI mentor running in fallback mode (missing %s).", missing)
+
 
 # ------------------------------------------------------------------
-# 🧠 Helper — Mock AI Logic
+# 🧠 Helper — AI Logic (OpenAI + safe fallback)
 # ------------------------------------------------------------------
 
 def generate_ai_feedback(reflection_text: str) -> dict:
     """
-    Temporary placeholder for AI analysis logic.
-    You can later replace this with a call to OpenAI, Anthropic, or Bedrock.
+    Generate feedback, summary, and XP reward using OpenAI.
+    Falls back to simple heuristic if key is missing or API fails.
+    Returns a dict: { "feedback": str, "summary": str, "xp_reward": int }
+    """
+
+    # If no key is configured, fall back to the old mock logic
+    if not client:
+        return _mock_ai_feedback(reflection_text)
+
+    try:
+        # Ask OpenAI to respond in JSON so we can parse it reliably
+        system_prompt = (
+            "You are a friendly study mentor for students using a gamified app. "
+            "Given the student's reflection about their study session, "
+            "return a SHORT feedback message, a one-sentence summary, "
+            "and an integer XP reward between 5 and 25.\n\n"
+            "Respond ONLY in JSON with this exact shape:\n"
+            "{\n"
+            '  "feedback": "string",\n'
+            '  "summary": "string",\n'
+            '  "xp_reward": 10\n'
+            "}"
+        )
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": reflection_text},
+            ],
+        )
+
+        content = response.choices[0].message.content
+        data = json.loads(content)
+
+        feedback = data.get("feedback") or "Keep going – each reflection helps you improve."
+        summary = data.get("summary") or (
+            reflection_text[:120] + "..." if len(reflection_text) > 120 else reflection_text
+        )
+
+        xp_reward = data.get("xp_reward", 10)
+        try:
+            xp_reward = int(xp_reward)
+        except (ValueError, TypeError):
+            xp_reward = 10
+
+        # clamp XP to reasonable range
+        xp_reward = max(5, min(25, xp_reward))
+
+        return {"feedback": feedback, "summary": summary, "xp_reward": xp_reward}
+
+    except Exception as e:
+        # If OpenAI fails for any reason, do NOT crash the endpoint.
+        # Fallback to simple heuristic logic.
+        return _mock_ai_feedback(reflection_text)
+
+
+def _mock_ai_feedback(reflection_text: str) -> dict:
+    """
+    Simple heuristic fallback when OpenAI is not available.
+    (Your previous mock logic, kept as backup.)
     """
     text = reflection_text.lower()
 
-    # Simple sentiment / keyword mock logic
     if any(word in text for word in ["tired", "hard", "struggle", "stuck"]):
         feedback = "It sounds like you faced challenges today — remember, progress is built through persistence."
     elif any(word in text for word in ["happy", "productive", "focused", "good", "great"]):
@@ -54,13 +141,15 @@ def add_reflection(data: TextAIReflectionCreate):
         user_exists = session.exec(select(User).where(User.username == data.user)).first()
         if not user_exists:
             raise HTTPException(status_code=404, detail="User not found. Please register first.")
-        # Step 1: Generate AI feedback and summary
+
+        # Step 1: Generate AI feedback and summary (OpenAI + fallback)
         ai_result = generate_ai_feedback(data.reflection_text)
+        reflection_date = data.date or datetime.utcnow()
 
         # Step 2: Create and save new record
         reflection = TextAIReflection(
             user=data.user,
-            date=data.date,
+            date=reflection_date,
             reflection_text=data.reflection_text,
             ai_feedback=ai_result["feedback"],
             summary=ai_result["summary"],
@@ -83,6 +172,7 @@ def list_reflections(user: str):
         user_exists = session.exec(select(User).where(User.username == user)).first()
         if not user_exists:
             raise HTTPException(status_code=404, detail="User not found. Please register first.")
+
         reflections = session.exec(
             select(TextAIReflection).where(TextAIReflection.user == user)
         ).all()

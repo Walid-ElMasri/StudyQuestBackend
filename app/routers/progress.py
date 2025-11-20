@@ -59,9 +59,10 @@ def add_progress(data: ProgressCreate):
     with Session(engine) as session:
         _ensure_user_exists(session, data.user)
         xp = calculate_xp(data.duration_minutes)
+        progress_date = data.date or datetime.utcnow()
         new_entry = Progress(
             user=data.user,
-            date=data.date,
+            date=progress_date,
             duration_minutes=data.duration_minutes,
             xp_gained=xp,
             reflection=data.reflection,
@@ -73,7 +74,7 @@ def add_progress(data: ProgressCreate):
 
         # Retrieve all user sessions to recalculate streak
         user_sessions = session.exec(select(Progress).where(Progress.user == data.user)).all()
-        streak = calculate_streak(data.date, user_sessions)
+        streak = calculate_streak(progress_date, user_sessions)
 
         return {
             "message": "Progress added successfully.",

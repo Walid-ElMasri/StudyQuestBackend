@@ -1,6 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
+
+# Shared config to enable attribute-based (ORM) reading in Pydantic v2.
+from_attributes_config = ConfigDict(from_attributes=True)
 
 # ------------------------------------------------------------------
 # 🔹 Common User Schema
@@ -17,8 +20,7 @@ class UserRead(UserBase):
     join_date: datetime
     total_xp: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -26,7 +28,7 @@ class UserRead(UserBase):
 # ------------------------------------------------------------------
 class ProgressBase(BaseModel):
     user: str
-    date: datetime
+    date: Optional[datetime] = None
     duration_minutes: int
     reflection: Optional[str] = None
 
@@ -37,8 +39,7 @@ class ProgressRead(ProgressBase):
     id: int
     xp_gained: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -61,8 +62,7 @@ class QuestCreate(QuestBase):
 class QuestRead(QuestBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 class LevelBase(BaseModel):
@@ -74,8 +74,7 @@ class LevelBase(BaseModel):
 class LevelRead(LevelBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -95,8 +94,7 @@ class AvatarCreate(AvatarBase):
 class AvatarRead(AvatarBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 class BadgeBase(BaseModel):
@@ -111,8 +109,7 @@ class BadgeCreate(BadgeBase):
 class BadgeRead(BadgeBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -120,11 +117,13 @@ class BadgeRead(BadgeBase):
 # ------------------------------------------------------------------
 class TextAIReflectionBase(BaseModel):
     user: str
-    date: datetime
+    date: Optional[datetime] = None
     reflection_text: str
 
 class TextAIReflectionCreate(TextAIReflectionBase):
-    pass
+    user: str
+    reflection_text: str
+    date: Optional[datetime] = None
 
 class TextAIReflectionRead(TextAIReflectionBase):
     id: int
@@ -132,8 +131,7 @@ class TextAIReflectionRead(TextAIReflectionBase):
     summary: Optional[str] = None
     xp_reward: int = 0
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -154,8 +152,7 @@ class BossBattleCreate(BossBattleBase):
 class BossBattleRead(BossBattleBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 # ------------------------------------------------------------------
@@ -173,8 +170,7 @@ class FriendCreate(FriendBase):
 class FriendRead(FriendBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config
 
 
 class LeaderboardBase(BaseModel):
@@ -186,5 +182,4 @@ class LeaderboardBase(BaseModel):
 class LeaderboardRead(LeaderboardBase):
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = from_attributes_config

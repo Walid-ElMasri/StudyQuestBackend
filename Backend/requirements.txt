@@ -14,3 +14,6 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.37.0
 psycopg[binary]==3.2.1
+openai==1.52.0
+httpx<0.28.0
+python-dotenv==1.0.1
