@@ -1,11 +1,28 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Body, Request
+from pydantic import BaseModel, Field, AliasChoices
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 from app.database import engine
 from app.models import BossBattle, User
+
+# Optional OpenAI support for dynamic questions
+import os
+import json
+import logging
+from dotenv import load_dotenv, find_dotenv
+
+try:
+    from openai import OpenAI
+except ImportError:  # pragma: no cover
+    OpenAI = None
+
+load_dotenv(find_dotenv())
+logger = logging.getLogger(__name__)
+
+openai_api_key = os.getenv("OPENAI_API_KEY")
+ai_client = OpenAI(api_key=openai_api_key) if (OpenAI and openai_api_key) else None
 
 
 router = APIRouter(prefix="/boss", tags=["Boss Battle"])
@@ -47,17 +64,65 @@ _QUESTIONS = [
     },
 ]
 
+def _generate_ai_questions(total: int) -> List[Dict[str, Any]]:
+    """Try to generate multiple-choice questions with OpenAI; fallback to static set."""
+    if not ai_client:
+        return _QUESTIONS[:total]
+
+    prompt = (
+        "Create a short quiz for coding students. "
+        "Return EXACTLY this JSON shape: "
+        '{"questions":[{"question":"string","choices":["A","B","C","D"],"answer_idx":0}]}. '
+        "Use clear, beginner-friendly tech topics. Ensure four choices and answer_idx points to the correct choice."
+    )
+    try:
+        resp = ai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Generate {total} questions."},
+            ],
+        )
+        data = json.loads(resp.choices[0].message.content)
+        questions = data.get("questions", []) if isinstance(data, dict) else []
+        # Basic validation
+        cleaned = []
+        for q in questions:
+            if not isinstance(q, dict):
+                continue
+            question = q.get("question")
+            choices = q.get("choices")
+            answer_idx = q.get("answer_idx")
+            if question and isinstance(choices, list) and len(choices) >= 2:
+                try:
+                    answer_idx = int(answer_idx)
+                except Exception:
+                    answer_idx = 0
+                cleaned.append({"question": question, "choices": choices[:4], "answer_idx": answer_idx})
+            if len(cleaned) >= total:
+                break
+        if cleaned:
+            return cleaned[:total]
+    except Exception as e:
+        logger.warning("AI question generation failed, falling back to static set: %s", e)
+    return _QUESTIONS[:total]
+
 
 class StartRequest(BaseModel):
-    user: str
+    user: str = Field(validation_alias=AliasChoices("user", "username"))
     difficulty: Optional[str] = "medium"  # easy | medium | hard
-    total_questions: Optional[int] = 5
-    time_limit_seconds: Optional[int] = 180  # timer per session
+    total_questions: Optional[int] = Field(
+        default=5, validation_alias=AliasChoices("total_questions", "totalQuestions")
+    )
+    time_limit_seconds: Optional[int] = Field(
+        default=180, validation_alias=AliasChoices("time_limit_seconds", "timeLimitSeconds")
+    )  # timer per session
 
 
 class AnswerRequest(BaseModel):
-    user: str
-    choice_idx: int
+    user: str = Field(validation_alias=AliasChoices("user", "username"))
+    choice_idx: int = Field(validation_alias=AliasChoices("choice_idx", "choiceIdx", "choice"))
 
 
 def _ensure_user_exists(username: str) -> None:
@@ -149,7 +214,8 @@ def start_boss_battle(payload: StartRequest):
     if payload.user in _ACTIVE_SESSIONS:
         raise HTTPException(status_code=409, detail="An active boss battle already exists.")
 
-    total = min(payload.total_questions, len(_QUESTIONS))
+    total = min(payload.total_questions, len(_QUESTIONS)) if payload.total_questions else len(_QUESTIONS)
+    questions = _generate_ai_questions(total)
     _ACTIVE_SESSIONS[payload.user] = {
         "difficulty": payload.difficulty or "medium",
         "started_at": datetime.utcnow(),
@@ -158,10 +224,10 @@ def start_boss_battle(payload: StartRequest):
         "score": 0,
         "index": 0,
         "total_questions": total,
-        "questions": _QUESTIONS[:total],
+        "questions": questions,
     }
 
-    q = _QUESTIONS[0]
+    q = questions[0]
     return {
         "message": "Boss battle started.",
         "user": payload.user,
@@ -202,20 +268,51 @@ def get_current_question(user: str):
 
 
 @router.post("/answer")
-def submit_answer(payload: AnswerRequest):
-    sess = _get_session(payload.user)
+async def submit_answer(
+    request: Request,
+    payload: AnswerRequest | None = Body(default=None),
+    user: str | None = None,
+    choice_idx: int | None = None,
+):
+    # Accept JSON body, form, or query params to minimize 422s.
+    if payload:
+        username = payload.user
+        choice = payload.choice_idx
+    else:
+        body: dict = {}
+        try:
+            body.update(await request.json())
+        except Exception:
+            try:
+                form_data = await request.form()
+                body.update(form_data)
+            except Exception:
+                pass
+        username = body.get("user") or body.get("username") or user
+        choice_raw = body.get("choice_idx") or body.get("choiceIdx") or body.get("choice") or choice_idx
+        try:
+            choice = int(choice_raw) if choice_raw is not None else None
+        except Exception:
+            choice = None
+
+    if not username:
+        raise HTTPException(status_code=400, detail="user is required.")
+    if choice is None:
+        raise HTTPException(status_code=400, detail="choice_idx is required.")
+
+    sess = _get_session(username)
 
 
     if _time_remaining(sess) == 0:
-        return _end_session(payload.user, status="timeout")
+        return _end_session(username, status="timeout")
 
     idx = sess["index"]
     if idx >= sess["total_questions"]:
-        return _end_session(payload.user, status="completed")
+        return _end_session(username, status="completed")
 
     q = sess["questions"][idx]
     correct_idx = q["answer_idx"]
-    is_correct = payload.choice_idx == correct_idx
+    is_correct = choice == correct_idx
 
     if is_correct:
         sess["score"] += 1
@@ -227,10 +324,10 @@ def submit_answer(payload: AnswerRequest):
     sess["index"] += 1
 
     if sess["lives"] <= 0:
-        return _end_session(payload.user, status="out_of_lives")
+        return _end_session(username, status="out_of_lives")
 
     if sess["index"] >= sess["total_questions"]:
-        return _end_session(payload.user, status="completed")
+        return _end_session(username, status="completed")
 
     next_q = sess["questions"][sess["index"]]
     return {
@@ -269,5 +366,3 @@ def get_status(user: str):
 def forfeit(user: str):
     _ = _get_session(user)
     return _end_session(user, status="forfeit")
-
-

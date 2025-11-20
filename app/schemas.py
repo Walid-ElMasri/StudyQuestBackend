@@ -1,9 +1,9 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from typing import Optional, List
 from datetime import datetime
 
 # Shared config to enable attribute-based (ORM) reading in Pydantic v2.
-from_attributes_config = ConfigDict(from_attributes=True)
+common_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 # ------------------------------------------------------------------
 # 🔹 Common User Schema
@@ -20,17 +20,19 @@ class UserRead(UserBase):
     join_date: datetime
     total_xp: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
 # 🔹 Walid — Progress Tracking
 # ------------------------------------------------------------------
 class ProgressBase(BaseModel):
-    user: str
+    user: str = Field(validation_alias=AliasChoices("user", "username"))
     date: Optional[datetime] = None
-    duration_minutes: int
-    reflection: Optional[str] = None
+    duration_minutes: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("duration_minutes", "durationMinutes", "duration")
+    )
+    reflection: Optional[str] = Field(default=None, validation_alias=AliasChoices("reflection", "note", "text"))
 
 class ProgressCreate(ProgressBase):
     pass
@@ -39,7 +41,7 @@ class ProgressRead(ProgressBase):
     id: int
     xp_gained: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
@@ -62,7 +64,7 @@ class QuestCreate(QuestBase):
 class QuestRead(QuestBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 class LevelBase(BaseModel):
@@ -74,7 +76,7 @@ class LevelBase(BaseModel):
 class LevelRead(LevelBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
@@ -94,7 +96,7 @@ class AvatarCreate(AvatarBase):
 class AvatarRead(AvatarBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 class BadgeBase(BaseModel):
@@ -109,16 +111,18 @@ class BadgeCreate(BadgeBase):
 class BadgeRead(BadgeBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
 # 🔹 All Team — Text AI Mentor
 # ------------------------------------------------------------------
 class TextAIReflectionBase(BaseModel):
-    user: str
+    user: str = Field(validation_alias=AliasChoices("user", "username"))
     date: Optional[datetime] = None
-    reflection_text: str
+    reflection_text: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("reflection_text", "reflectionText", "text", "reflection")
+    )
 
 class TextAIReflectionCreate(TextAIReflectionBase):
     user: str
@@ -131,7 +135,7 @@ class TextAIReflectionRead(TextAIReflectionBase):
     summary: Optional[str] = None
     xp_reward: int = 0
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
@@ -152,7 +156,7 @@ class BossBattleCreate(BossBattleBase):
 class BossBattleRead(BossBattleBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 # ------------------------------------------------------------------
@@ -170,7 +174,7 @@ class FriendCreate(FriendBase):
 class FriendRead(FriendBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config
 
 
 class LeaderboardBase(BaseModel):
@@ -182,4 +186,4 @@ class LeaderboardBase(BaseModel):
 class LeaderboardRead(LeaderboardBase):
     id: int
 
-    model_config = from_attributes_config
+    model_config = common_config

@@ -58,12 +58,13 @@ def add_progress(data: ProgressCreate):
     """
     with Session(engine) as session:
         _ensure_user_exists(session, data.user)
-        xp = calculate_xp(data.duration_minutes)
+        duration = data.duration_minutes or 0
+        xp = calculate_xp(duration)
         progress_date = data.date or datetime.utcnow()
         new_entry = Progress(
             user=data.user,
             date=progress_date,
-            duration_minutes=data.duration_minutes,
+            duration_minutes=duration,
             xp_gained=xp,
             reflection=data.reflection,
         )

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body, Request
 from sqlmodel import Session, select
 from datetime import datetime
 from app.database import engine
@@ -132,25 +132,58 @@ def _mock_ai_feedback(reflection_text: str) -> dict:
 
 
 @router.post("/", response_model=TextAIReflectionRead)
-def add_reflection(data: TextAIReflectionCreate):
+async def add_reflection(
+    request: Request,
+    data: TextAIReflectionCreate | None = Body(default=None),
+    user: str | None = None,
+    text: str | None = None,
+):
     """
     Add a new text reflection entry and analyze it using AI feedback logic.
     Returns feedback, summary, and XP reward.
     """
+    # Accept both JSON body and query/form fallbacks to avoid 422s from clients
+    incoming: dict = {}
+    if data is not None:
+        incoming.update(data.model_dump(exclude_none=True))
+    else:
+        try:
+            incoming.update(await request.json())
+        except Exception:
+            try:
+                form_data = await request.form()
+                incoming.update(form_data)
+            except Exception:
+                pass
+
+    username = incoming.get("user") or incoming.get("username") or user
+    reflection_text = (
+        incoming.get("reflection_text")
+        or incoming.get("reflectionText")
+        or incoming.get("text")
+        or incoming.get("reflection")
+        or text
+    )
+
+    if not username:
+        raise HTTPException(status_code=400, detail="user is required.")
+    if not reflection_text:
+        raise HTTPException(status_code=400, detail="reflection_text is required.")
+
     with Session(engine) as session:
-        user_exists = session.exec(select(User).where(User.username == data.user)).first()
+        user_exists = session.exec(select(User).where(User.username == username)).first()
         if not user_exists:
             raise HTTPException(status_code=404, detail="User not found. Please register first.")
 
         # Step 1: Generate AI feedback and summary (OpenAI + fallback)
-        ai_result = generate_ai_feedback(data.reflection_text)
-        reflection_date = data.date or datetime.utcnow()
+        ai_result = generate_ai_feedback(str(reflection_text))
+        reflection_date = incoming.get("date") or (data.date if data else None) or datetime.utcnow()
 
         # Step 2: Create and save new record
         reflection = TextAIReflection(
-            user=data.user,
+            user=username,
             date=reflection_date,
-            reflection_text=data.reflection_text,
+            reflection_text=str(reflection_text),
             ai_feedback=ai_result["feedback"],
             summary=ai_result["summary"],
             xp_reward=ai_result["xp_reward"],
