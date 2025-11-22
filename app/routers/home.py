@@ -51,15 +51,12 @@ def home():
     return {
         "message": "Welcome to the StudyQuest Backend API 🎯",
         "status": "running",
-        "available_sections": {
-            "Home Dashboard": "/home/dashboard?user=<username>",
-            "Progress Tracking": "/progress",
-            "Quests & Levels": "/quests",
-            "Cosmetics & Rewards": "/cosmetics",
-            "AI Text Mentor": "/text-ai",
-            "Daily Boss Battle": "/boss",
-            "Social Features": "/social"
+        "hero": {
+            "headline": "Pick a feature to explore",
+            "subtext": "Home stays light — tap a button to dive deeper."
         },
+        "feature_buttons": get_feature_buttons(),
+        "available_sections": get_navigation_links(),
         "docs": "/docs"
     }
 
@@ -91,7 +88,8 @@ def get_dashboard(user: str):
                     "motivation": "Start your first study quest and earn XP today!"
                 },
                 "recent_sessions": [],
-                "navigation": get_navigation_links()
+                "navigation": get_navigation_links(),
+                "feature_buttons": get_feature_buttons()
             }
 
         # 3️⃣ Sort and calculate stats
@@ -122,7 +120,8 @@ def get_dashboard(user: str):
                 "motivation": motivation
             },
             "recent_sessions": recent,
-            "navigation": get_navigation_links()
+            "navigation": get_navigation_links(),
+            "feature_buttons": get_feature_buttons()
         }
 
 
@@ -140,3 +139,48 @@ def get_navigation_links() -> dict:
         "Daily Boss Battle": "/boss",
         "Social Features": "/social"
     }
+
+
+def get_feature_buttons() -> list[dict]:
+    """
+    Button-friendly metadata for the home page so the frontend can render
+    clear calls-to-action instead of exposing full feature payloads.
+    """
+    return [
+        {
+            "label": "Progress Tracking",
+            "endpoint": "/progress",
+            "description": "Log a study session, earn XP, and see your streak.",
+            "cta": "Log progress"
+        },
+        {
+            "label": "Quests & Levels",
+            "endpoint": "/quests",
+            "description": "Pick a quest and level up as you complete tasks.",
+            "cta": "View quests"
+        },
+        {
+            "label": "Cosmetics & Rewards",
+            "endpoint": "/cosmetics",
+            "description": "Customize your avatar and browse unlockable badges.",
+            "cta": "Open cosmetics"
+        },
+        {
+            "label": "AI Text Mentor",
+            "endpoint": "/text-ai",
+            "description": "Reflect on your study session and get AI feedback.",
+            "cta": "Ask the mentor"
+        },
+        {
+            "label": "Daily Boss Battle",
+            "endpoint": "/boss",
+            "description": "Face the daily quiz to earn bonus XP.",
+            "cta": "Start battle"
+        },
+        {
+            "label": "Social Features",
+            "endpoint": "/social",
+            "description": "Add friends and climb the leaderboard together.",
+            "cta": "Go social"
+        },
+    ]

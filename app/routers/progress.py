@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.database import engine
 from app.models import Progress, User
@@ -17,11 +17,11 @@ def _ensure_user_exists(session: Session, username: str) -> User:
     return user
 
 def calculate_xp(duration_minutes: int) -> int:
-    """Give 10 XP for every 25 minutes studied."""
-    return (duration_minutes // 25) * 10
+    """Give 10 XP for every 25 minutes studied (minimum 0)."""
+    return max((duration_minutes // 25) * 10, 0)
 
 
-def calculate_streak(latest_session_date: datetime, all_sessions: list[Progress]) -> int:
+def calculate_streak(all_sessions: list[Progress]) -> int:
     """Calculate how many consecutive days the user has studied."""
     dates = sorted({p.date.date() for p in all_sessions})
     if not dates:
@@ -57,7 +57,7 @@ def add_progress(data: ProgressCreate):
     - Computes user's current streak.
     """
     with Session(engine) as session:
-        _ensure_user_exists(session, data.user)
+        user_obj = _ensure_user_exists(session, data.user)
         duration = data.duration_minutes or 0
         xp = calculate_xp(duration)
         progress_date = data.date or datetime.utcnow()
@@ -75,12 +75,23 @@ def add_progress(data: ProgressCreate):
 
         # Retrieve all user sessions to recalculate streak
         user_sessions = session.exec(select(Progress).where(Progress.user == data.user)).all()
-        streak = calculate_streak(progress_date, user_sessions)
+        streak = calculate_streak(user_sessions)
+        total_xp = sum(s.xp_gained for s in user_sessions)
+        total_sessions = len(user_sessions)
+
+        # Persist updated totals on the user record for leaderboard/home use.
+        user_obj.total_xp = total_xp
+        session.add(user_obj)
+        session.commit()
 
         return {
             "message": "Progress added successfully.",
             "session": new_entry,
             "streak_days": streak,
+            "totals": {
+                "total_xp": total_xp,
+                "total_sessions": total_sessions
+            }
         }
 
 
@@ -104,7 +115,7 @@ def get_statistics(user: str):
         total_sessions = len(sessions)
         avg_duration = sum(s.duration_minutes for s in sessions) / total_sessions
 
-        streak = calculate_streak(datetime.now(), sessions)
+        streak = calculate_streak(sessions)
 
         return {
             "user": user,
