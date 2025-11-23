@@ -148,6 +148,7 @@ def get_leaderboard(limit: int = 10):
         leaderboard_entries = []
         for rank, user in enumerate(users[:limit], start=1):
             entry = Leaderboard(
+                id = rank,
                 user=user.username,
                 total_xp=user.total_xp,
                 current_streak=0,  # placeholder if streak not tracked globally
