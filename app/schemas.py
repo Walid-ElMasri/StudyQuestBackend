@@ -51,12 +51,14 @@ class ProgressRead(ProgressBase):
 class QuestBase(BaseModel):
     name: str
     description: str
-    difficulty: str
+    difficulty: str          # "Easy", "Medium", "Hard"
     xp_reward: int
     completed: bool = False
     assigned_to: Optional[str] = None
     is_daily: bool = False
     deadline: Optional[datetime] = None
+    quest_type: str          # "timer" | "flashcards" | "calendar"
+
 
 class QuestCreate(QuestBase):
     pass
