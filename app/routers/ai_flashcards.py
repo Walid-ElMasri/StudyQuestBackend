@@ -16,7 +16,7 @@ HF_MODEL = os.getenv("HF_MODEL")
 # OpenAI client, but pointed at Hugging Face router
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key=HF_TOKEN,
+    api_key="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",
 )
 
 
