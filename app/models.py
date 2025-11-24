@@ -47,6 +47,8 @@ class Quest(SQLModel, table=True):
     assigned_to: Optional[str] = Field(default=None, foreign_key="users.username")
     is_daily: bool = False
     deadline: Optional[datetime] = None
+    quest_type: str  # "timer" | "flashcards" | "calendar"
+
 
 
 class UserQuest(SQLModel, table=True):

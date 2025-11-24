@@ -1,4 +1,4 @@
-#!/Users/walidelmasri/Downloads/StudyQuest-Backend/venv/bin/python3.12
+#!/Users/ayanheili/Desktop/StudyQuestBackend/venv/bin/python
 import sys
 from dotenv.__main__ import cli
 if __name__ == '__main__':
