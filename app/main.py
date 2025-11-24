@@ -3,6 +3,10 @@ from fastapi import FastAPI
 
 from app.database import init_db
 from app.routers import bossbattle, home, progress, users
+from dotenv import load_dotenv
+load_dotenv()
+from app.routers.ai_flashcards import router as ai_flashcards_router
+
 
 try:
     from app.routers import quests
@@ -45,6 +49,7 @@ app = FastAPI(
 
 app.include_router(home.router)
 app.include_router(progress.router)
+app.include_router(ai_flashcards_router)
 if quests and hasattr(quests, "router"):
     app.include_router(quests.router)
 app.include_router(bossbattle.router)
