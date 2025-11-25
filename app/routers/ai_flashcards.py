@@ -10,14 +10,16 @@ router = APIRouter()
 # From your .env:
 # HF_API_KEY=...
 # HF_MODEL=HuggingFaceTB/SmolLM3-3B:hf-inference   (example)
-HF_TOKEN = os.getenv("HF_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL")
+HF_TOKEN = "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"
+HF_MODEL = "HuggingFaceTB/SmolLM3-3B:hf-inference"
+
 
 # OpenAI client, but pointed at Hugging Face router
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key="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",
+    api_key="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",
 )
+
 
 
 class FlashcardsRequest(BaseModel):
