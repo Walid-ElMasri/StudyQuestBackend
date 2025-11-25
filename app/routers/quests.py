@@ -29,30 +29,38 @@ def list_quests():
 @router.get("/available")
 def list_available_quests(user: str):
     """List quests the user hasn't completed yet."""
-    with Session(engine) as session:
-        # Fetch user
-        user_obj = session.exec(
-            select(User).where(User.username == user)
-        ).first()
-        if not user_obj:
-            raise HTTPException(status_code=404, detail="User not found.")
+    try:
+        with Session(engine) as session:
+            # Fetch user
+            user_obj = session.exec(
+                select(User).where(User.username == user)
+            ).first()
+            if not user_obj:
+                raise HTTPException(status_code=404, detail="User not found.")
 
-        # All quests
-        all_quests = session.exec(select(Quest)).all()
+            # All quests
+            all_quests = session.exec(select(Quest)).all()
 
-        # Use the SAME field you use when creating UserQuest: `user`
-        completed_rows = session.exec(
-            select(UserQuest).where(UserQuest.user == user)
-        ).all()
-        completed_ids = [uq.quest_id for uq in completed_rows]
+            # Get completed quest IDs for this username
+            completed_rows = session.exec(
+                select(UserQuest).where(UserQuest.user == user)
+            ).all()
+            completed_ids = [uq.quest_id for uq in completed_rows]
 
-        # Filter available quests
-        available = [q for q in all_quests if q.id not in completed_ids]
+            # Filter available quests
+            available = [q for q in all_quests if q.id not in completed_ids]
 
-        if not available:
-            return {"message": "You’ve completed all available quests. Well done!"}
+            if not available:
+                return {"message": "You’ve completed all available quests. Well done!"}
 
-        return {"available_quests": available, "remaining": len(available)}
+            return {"available_quests": available, "remaining": len(available)}
+    except Exception as e:
+        # TEMP: show the real error so we can fix it
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error in /quests/available: {e}"
+        )
+
 
 
 @router.post("/")
