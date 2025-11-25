@@ -4,20 +4,21 @@ from openai import OpenAI
 import os
 import json
 import re
+from dotenv import load_dotenv
 
 router = APIRouter()
 
 # From your .env:
 # HF_API_KEY=...
 # HF_MODEL=HuggingFaceTB/SmolLM3-3B:hf-inference   (example)
-HF_TOKEN = "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"
-HF_MODEL = "HuggingFaceTB/SmolLM3-3B:hf-inference"
+load_dotenv()
 
+HF_TOKEN = os.getenv("HF_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL")
 
-# OpenAI client, but pointed at Hugging Face router
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key="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",
+    api_key=HF_TOKEN,
 )
 
 
