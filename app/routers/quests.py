@@ -40,12 +40,11 @@ def list_available_quests(user: str):
         # All quests
         all_quests = session.exec(select(Quest)).all()
 
-        # FIXED: Query using user_id instead of `user` string
-        completed_ids = session.exec(
-            select(UserQuest.quest_id).where(UserQuest.user_id == user_obj.id)
+        # Use the SAME field you use when creating UserQuest: `user`
+        completed_rows = session.exec(
+            select(UserQuest).where(UserQuest.user == user)
         ).all()
-
-        completed_ids = [cid for cid in completed_ids]  # flatten result
+        completed_ids = [uq.quest_id for uq in completed_rows]
 
         # Filter available quests
         available = [q for q in all_quests if q.id not in completed_ids]
@@ -94,14 +93,13 @@ def complete_quest(user: str, quest_id: int):
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Check completion
+        # Check completion for this username
         completed = session.exec(
             select(UserQuest).where(
-                UserQuest.user_id == user_obj.id,
+                UserQuest.user == user,
                 UserQuest.quest_id == quest_id
             )
         ).first()
-
         if completed:
             raise HTTPException(status_code=400, detail="Quest already completed.")
 
@@ -112,9 +110,9 @@ def complete_quest(user: str, quest_id: int):
         if hasattr(type(user_obj), "current_level"):
             user_obj.current_level = new_level
 
-        # Save completion record
+        # Save completion record (user is a string, like before)
         user_quest = UserQuest(
-            user_id=user_obj.id,
+            user=user,
             quest_id=quest_id,
             xp_earned=quest.xp_reward,
         )
@@ -137,7 +135,6 @@ def get_level_info(user: str):
         user_obj = session.exec(
             select(User).where(User.username == user)
         ).first()
-
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found.")
 
