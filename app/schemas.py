@@ -30,7 +30,13 @@ class ProgressBase(BaseModel):
     user: str = Field(validation_alias=AliasChoices("user", "username"))
     date: Optional[datetime] = None
     duration_minutes: Optional[int] = Field(
-        default=None, validation_alias=AliasChoices("duration_minutes", "durationMinutes", "duration")
+        default=None,
+        validation_alias=AliasChoices(
+            "duration_minutes",
+            "durationMinutes",
+            "duration",
+            "minutes",  # accept short-form payloads
+        ),
     )
     reflection: Optional[str] = Field(default=None, validation_alias=AliasChoices("reflection", "note", "text"))
 
