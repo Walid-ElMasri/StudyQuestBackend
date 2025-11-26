@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, SQLModel
 from datetime import datetime
+from sqlalchemy import text  # <-- needed for ALTER TABLE
 
 from app.database import engine
 from app.models import Quest, User, UserQuest
@@ -22,30 +23,45 @@ def list_quests():
     with Session(engine) as session:
         quests = session.exec(select(Quest)).all()
         if not quests:
-            raise HTTPException(status_code=404, detail="No quests found.")
+            return {"message": "No quests found."}
         return quests
 
 
 @router.get("/available")
 def list_available_quests(user: str):
     """List quests the user hasn't completed yet."""
-    with Session(engine) as session:
-        user_obj = session.exec(select(User).where(User.username == user)).first()
-        if not user_obj:
-            raise HTTPException(status_code=404, detail="User not found.")
+    try:
+        with Session(engine) as session:
+            # Fetch user
+            user_obj = session.exec(
+                select(User).where(User.username == user)
+            ).first()
+            if not user_obj:
+                raise HTTPException(status_code=404, detail="User not found.")
 
-        all_quests = session.exec(select(Quest)).all()
-        completed_ids = [
-            uq.quest_id
-            for uq in session.exec(select(UserQuest).where(UserQuest.user == user)).all()
-        ]
+            # All quests
+            all_quests = session.exec(select(Quest)).all()
 
-        available = [q for q in all_quests if q.id not in completed_ids]
+            # Get completed quest IDs
+            completed_rows = session.exec(
+                select(UserQuest).where(UserQuest.user == user)
+            ).all()
+            completed_ids = [uq.quest_id for uq in completed_rows]
 
-        if not available:
-            return {"message": "You’ve completed all available quests. Well done!"}
+            # Filter available quests
+            available = [q for q in all_quests if q.id not in completed_ids]
 
-        return {"available_quests": available, "remaining": len(available)}
+            if not available:
+                return {"message": "You’ve completed all available quests. Well done!"}
+
+            return {"available_quests": available, "remaining": len(available)}
+
+    except Exception as e:
+        # TEMP: show real error
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error in /quests/available: {e}"
+        )
 
 
 @router.post("/")
@@ -59,7 +75,7 @@ def create_quest(data: QuestCreate):
             xp_reward=data.xp_reward,
             is_daily=data.is_daily,
             deadline=data.deadline,
-            quest_type=data.quest_type,  # ⬅️ IMPORTANT
+            quest_type=data.quest_type,   # <-- NEW COLUMN
         )
         session.add(quest)
         session.commit()
@@ -67,12 +83,10 @@ def create_quest(data: QuestCreate):
         return {"message": "Quest created successfully.", "quest": quest}
 
 
-
 @router.post("/complete/{quest_id}")
 def complete_quest(user: str, quest_id: int):
     """
     Mark a quest as completed and reward XP.
-
     Called from Android as:
     POST /quests/complete/{quest_id}?user=username
     """
@@ -87,10 +101,11 @@ def complete_quest(user: str, quest_id: int):
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Check if already completed
+        # Check completion
         completed = session.exec(
             select(UserQuest).where(
-                UserQuest.user == user, UserQuest.quest_id == quest_id
+                UserQuest.user == user,
+                UserQuest.quest_id == quest_id
             )
         ).first()
         if completed:
@@ -98,15 +113,12 @@ def complete_quest(user: str, quest_id: int):
 
         # Reward XP
         user_obj.total_xp += quest.xp_reward
-
-        # Compute level from total XP (even if User model has no current_level field)
         new_level = calculate_level(user_obj.total_xp)
 
-        # Only persist current_level if the model actually has that field
         if hasattr(type(user_obj), "current_level"):
             user_obj.current_level = new_level
 
-        # Save completion record
+        # Save record
         user_quest = UserQuest(
             user=user,
             quest_id=quest_id,
@@ -123,23 +135,20 @@ def complete_quest(user: str, quest_id: int):
             "current_level": new_level,
         }
 
+
 @router.get("/levels")
 def get_level_info(user: str):
     """Get user's level and XP progress."""
     with Session(engine) as session:
-        user_obj = session.exec(select(User).where(User.username == user)).first()
+        user_obj = session.exec(
+            select(User).where(User.username == user)
+        ).first()
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        # Safely read total XP (or default 0)
         total_xp = getattr(user_obj, "total_xp", 0)
-
-        # Use stored current_level if it exists, otherwise compute it
         stored_level = getattr(user_obj, "current_level", None)
-        if stored_level is not None:
-            current_level = stored_level
-        else:
-            current_level = calculate_level(total_xp)
+        current_level = stored_level if stored_level is not None else calculate_level(total_xp)
 
         next_level_xp = current_level * 100
         xp_to_next = next_level_xp - total_xp
@@ -150,3 +159,27 @@ def get_level_info(user: str):
             "total_xp": total_xp,
             "xp_to_next_level": max(0, xp_to_next),
         }
+
+
+# ---------- DB FIX: Add quest_type column ----------
+@router.get("/debug/add-quest-type-column")
+def add_quest_type_column():
+    """
+    TEMP: Ensure quest.quest_type column exists (fix for Vercel Postgres).
+    """
+    with engine.connect() as conn:
+        conn.execute(
+            text("ALTER TABLE quest ADD COLUMN IF NOT EXISTS quest_type VARCHAR(255)")
+        )
+        conn.commit()
+    return {"message": "quest_type column ensured"}
+
+
+# ---------- DB INIT (only once) ----------
+@router.get("/debug/init-db")
+def init_db():
+    """
+    Create all tables if missing.
+    """
+    SQLModel.metadata.create_all(engine)
+    return {"message": "DB initialized"}
