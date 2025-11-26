@@ -7,6 +7,7 @@ from app.models import (
     Avatar,
     Badge,
     BossBattle,
+    Friend,
     Progress,
     Quest,
     TextAIReflection,
@@ -205,4 +206,32 @@ def seed_demo_data() -> None:
 
         demo_user.total_xp = progress_xp + quest_xp + boss_xp + reflection_xp
         session.add(demo_user)
+
+        # --- Social demo friend (so removal can be demonstrated) ---
+        social_friend = session.exec(select(User).where(User.username == "demo_friend")).first()
+        if not social_friend:
+            social_friend = User(
+                username="demo_friend",
+                email="friend@studyquest.app",
+                total_xp=120,
+            )
+            session.add(social_friend)
+            session.commit()
+            session.refresh(social_friend)
+
+        friendship = session.exec(
+            select(Friend).where(
+                ((Friend.user == "demo") & (Friend.friend_username == social_friend.username))
+                | ((Friend.user == social_friend.username) & (Friend.friend_username == "demo"))
+            )
+        ).first()
+        if not friendship:
+            session.add(
+                Friend(
+                    user="demo",
+                    friend_username=social_friend.username,
+                    status="accepted",
+                    since=datetime.utcnow(),
+                )
+            )
         session.commit()
