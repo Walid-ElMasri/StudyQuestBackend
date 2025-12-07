@@ -28,7 +28,7 @@ router = APIRouter(prefix="/text-ai", tags=["Text AI Mentor"])
 # ------------------------------------------------------------------
 
 # Reads key from environment variable OPENAI_API_KEY
-# - Locally:  export OPENAI_API_KEY="sk-...."
+# - Locally:  it is saved
 # - Vercel:   set it in Project → Settings → Environment Variables
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key) if OpenAI and openai_api_key else None
